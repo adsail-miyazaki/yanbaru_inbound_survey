@@ -1,0 +1,35 @@
+name: Create Daily CSV from Spreadsheet
+
+# GASからのHTTPリクエスト(repository_dispatch)をトリガーにする
+on:
+  repository_dispatch:
+    types: [spreadsheet-data]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. リポジトリをチェックアウト（コードを読み込む）
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # シークレットに保存したトークンを使用する
+          token: ${{ secrets.GH_TOKEN }}
+
+      # 2. CSVファイルをダウンロード
+      - name: Create Daily CSV
+        run: |
+          # GASから送られてきたGoogle DriveのダウンロードURLを使用
+          curl -L "${{ github.event.client_payload.download_url }}" -o ${{ github.event.client_payload.filename }}
+      
+      # 3. 変更内容をコミット＆プッシュ
+      - name: Commit & Push
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add ${{ github.event.client_payload.filename }}
+          
+          # 変更があった場合のみコミットを実行する（「変更なし」エラーを回避）
+          git diff --staged --quiet || git commit -m "daily data update: ${{ github.event.client_payload.filename }}"
+          
+          git push
